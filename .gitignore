@@ -1,5 +1,9 @@
+__pycache__
 *.jpg
 *.JPG
 *.gif
 *.png
 *.PNG
+*.pth
+*.tar
+*.zip

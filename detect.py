@@ -2,6 +2,7 @@
 # import matplotlib.pyplot as plt
 # matplotlib.use('TkAgg')
 import cv2
+import numpy as np
 from torchvision import transforms
 from detection_tutorial.utils import *
 from PIL import Image, ImageDraw, ImageFont
@@ -100,11 +101,34 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     return annotated_image
 
 
+# if __name__ == '__main__':
+#     # img_path = '/host_home/projects/detection_tutorial/img/000001.jpg'
+#     img_path = '/host_home/projects/data/unit/1554673655/image.jpg'
+#     original_image = Image.open(img_path, mode='r')
+#     original_image = original_image.convert('RGB')
+#     annotated_image = detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200)
+#     with open('detections.jpg', 'wb') as imf:
+#         annotated_image.save(imf)
+
+
 if __name__ == '__main__':
-    # img_path = '/host_home/projects/detection_tutorial/img/000001.jpg'
-    img_path = '/host_home/projects/data/unit/1554673655/image.jpg'
-    original_image = Image.open(img_path, mode='r')
-    original_image = original_image.convert('RGB')
-    annotated_image = detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200)
-    with open('detections.jpg', 'wb') as imf:
-        annotated_image.save(imf)
+    cv2.namedWindow('NeuralNet', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('NeuralNet', 640, 480)
+
+    cam = cv2.VideoCapture('/dev/video0')
+    if not cam.isOpened():
+        raise IOError("Cannot open webcam")
+
+    while True:
+        _, frame = cam.read()
+
+        frame = Image.fromarray(frame)
+        annotated_image = detect(frame, min_score=0.2, max_overlap=0.5, top_k=200)
+        cv2.imshow('NeuralNet', np.array(annotated_image))
+
+        key = cv2.waitKey(1)
+        if key == 27:
+            break
+
+    cam.release()
+    cv2.destroyAllWindows()

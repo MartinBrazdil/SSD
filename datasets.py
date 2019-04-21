@@ -1,5 +1,6 @@
 import csv
 import sys
+from collections import deque
 
 import torch
 from torch.utils.data import Dataset
@@ -193,7 +194,7 @@ class UNITDataset(Dataset):
         :param split: split, one of 'TRAIN' or 'TEST'
         :param keep_difficult: keep or discard objects that are considered difficult to detect?
         """
-        self.buffer =[]
+        self.buffer = deque(maxlen=10000)
         self.split = split.upper()
 
         assert self.split in {'TRAIN', 'TEST'}
@@ -234,10 +235,12 @@ class UNITDataset(Dataset):
         difficulties = torch.ByteTensor(self.annotations[i]['difficulties'])  # (n_objects)
 
         # Apply transformations
-        if np.random.binomial(1, 0.8) and 0 < len(self.buffer):
-            image, boxes, labels, difficulties = self.buffer[np.random.uniform(0, len(self.bufffer)-1)]
+        if np.random.binomial(1, 0.5) and 0 < len(self.buffer):
+            rnd_idx = int(np.random.uniform(0, len(self.buffer)-1))
+            image, boxes, labels, difficulties = self.buffer[rnd_idx]
         else:
             image, boxes, labels, difficulties = transform(self.images[i], boxes, labels, difficulties, split=self.split)
+            self.buffer.append([image, boxes, labels, difficulties])
 
         return image, boxes, labels, difficulties
 

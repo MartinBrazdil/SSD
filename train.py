@@ -2,7 +2,8 @@ import time
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-from detection_tutorial.model import SSD300, MultiBoxLoss
+# from detection_tutorial.model import SSD300, MultiBoxLoss
+from detection_tutorial.model_tiny import TinySSD, MultiBoxLoss
 from detection_tutorial.datasets import UNITDataset
 from detection_tutorial.utils import *
 
@@ -17,19 +18,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Learning parameters
 checkpoint = None  # path to model checkpoint, None if none
-batch_size = 1  # batch size
+batch_size = 4  # batch size
 start_epoch = 0  # start at this epoch
 epochs = 20000  # number of epochs to run without early-stopping
 epochs_since_improvement = 0  # number of epochs since there was an improvement in the validation metric
 best_loss = 100.  # assume a high loss at first
-workers = 1  # number of workers for loading data in the DataLoader
-print_freq = 200  # print training or validation status every __ batches
-lr = 1e-3  # learning rate
+workers = 4  # number of workers for loading data in the DataLoader
+print_freq = 50  # print training or validation status every __ batches
+lr = 1e-4  # learning rate
 momentum = 0.9  # momentum
-weight_decay = 5e-4  # weight decay
 grad_clip = None  # clip if gradients are exploding, which may happen at larger batch sizes (sometimes at 32) - you will recognize it by a sorting error in the MuliBox loss calculation
-
-cudnn.benchmark = True
 
 
 def main():
@@ -58,7 +56,8 @@ def main():
 
     # Initialize model or load checkpoint
     if checkpoint is None:
-        model = SSD300(n_classes=train_dataset.n_classes)
+        # model = SSD300(n_classes=train_dataset.n_classes)
+        model = TinySSD(n_classes=train_dataset.n_classes)
         # Initialize the optimizer, with twice the default learning rate for biases, as in the original Caffe repo
         biases = list()
         not_biases = list()
@@ -68,8 +67,9 @@ def main():
                     biases.append(param)
                 else:
                     not_biases.append(param)
-        optimizer = torch.optim.SGD(params=[{'params': biases, 'lr': 2 * lr}, {'params': not_biases}],
-                                    lr=lr, momentum=momentum, weight_decay=weight_decay)
+        # optimizer = torch.optim.SGD(params=[{'params': biases, 'lr': 2 * lr}, {'params': not_biases}],
+        #                             lr=lr, momentum=momentum, weight_decay=weight_decay)
+        optimizer = torch.optim.Adam(params=[{'params': not_biases}], lr=lr)
 
     else:
         checkpoint = torch.load(checkpoint)
@@ -145,7 +145,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     # Batches
     # Fix huge memory allocation
-    torch.backends.cudnn.deterministic = True
     for i, (images, boxes, labels, _) in enumerate(train_loader):
         data_time.update(time.time() - start)
 

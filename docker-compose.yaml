@@ -2,8 +2,8 @@ version: '3.7'
 
 services:
     UnIT:
-        image: 'pytorch04:latest'
-        user: 'brazdilm1'
+        image: 'pytorch'
+        user: 'ccv'
         devices:
           - /dev/video0
 #          - /dev/video1
@@ -13,7 +13,7 @@ services:
         volumes:
           - /home/brazdilm1:/host_home
           - /tmp/.X11-unix:/tmp/.X11-unix:rw
-#          - /dev/video0:/dev/video0
+          - /dev/video0:/dev/video0
 #          - /dev/video1:/dev/video1
         ports:
           - 8000:8000
