@@ -1,5 +1,9 @@
+# import matplotlib
+# import matplotlib.pyplot as plt
+# matplotlib.use('TkAgg')
+import cv2
 from torchvision import transforms
-from utils import *
+from detection_tutorial.utils import *
 from PIL import Image, ImageDraw, ImageFont
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,7 +59,8 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     det_boxes = det_boxes * original_dims
 
     # Decode class integer labels
-    det_labels = [rev_label_map[l] for l in det_labels[0].to('cpu').tolist()]
+    # det_labels = [rev_label_map[l] for l in det_labels[0].to('cpu').tolist()]
+    det_labels = [l for l in det_labels[0].to('cpu').tolist()]
 
     # If no objects found, the detected labels will be set to ['0.'], i.e. ['background'] in SSD300.detect_objects() in model.py
     if det_labels == ['background']:
@@ -75,29 +80,31 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
 
         # Boxes
         box_location = det_boxes[i].tolist()
-        draw.rectangle(xy=box_location, outline=label_color_map[det_labels[i]])
-        draw.rectangle(xy=[l + 1. for l in box_location], outline=label_color_map[
-            det_labels[i]])  # a second rectangle at an offset of 1 pixel to increase line thickness
-        # draw.rectangle(xy=[l + 2. for l in box_location], outline=label_color_map[
-        #     det_labels[i]])  # a third rectangle at an offset of 1 pixel to increase line thickness
-        # draw.rectangle(xy=[l + 3. for l in box_location], outline=label_color_map[
-        #     det_labels[i]])  # a fourth rectangle at an offset of 1 pixel to increase line thickness
+        # draw.rectangle(xy=box_location, outline=label_color_map[det_labels[i]])
+        # draw.rectangle(xy=[l + 1. for l in box_location], outline=label_color_map[det_labels[i]])
+        draw.rectangle(xy=box_location, outline='blue')
+        draw.rectangle(xy=[l + 1. for l in box_location], outline='blue')
 
         # Text
-        text_size = font.getsize(det_labels[i].upper())
+        # text_size = font.getsize(det_labels[i].upper())
+        text_size = font.getsize(str(det_labels[i]).upper())
         text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
         textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
                             box_location[1]]
-        draw.rectangle(xy=textbox_location, fill=label_color_map[det_labels[i]])
-        draw.text(xy=text_location, text=det_labels[i].upper(), fill='white',
-                  font=font)
+        # draw.rectangle(xy=textbox_location, fill=label_color_map[det_labels[i]])
+        draw.rectangle(xy=textbox_location, fill='black')
+        # draw.text(xy=text_location, text=det_labels[i].upper(), fill='white', font=font)
+        draw.text(xy=text_location, text=str(det_labels[i]).upper(), fill='white', font=font)
     del draw
 
     return annotated_image
 
 
 if __name__ == '__main__':
-    img_path = '/media/ssd/ssd data/VOC2007/JPEGImages/000001.jpg'
+    # img_path = '/host_home/projects/detection_tutorial/img/000001.jpg'
+    img_path = '/host_home/projects/data/unit/1554673655/image.jpg'
     original_image = Image.open(img_path, mode='r')
     original_image = original_image.convert('RGB')
-    detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200).show()
+    annotated_image = detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200)
+    with open('detections.jpg', 'wb') as imf:
+        annotated_image.save(imf)

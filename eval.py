@@ -1,5 +1,5 @@
-from utils import *
-from datasets import PascalVOCDataset
+from detection_tutorial.utils import *
+from detection_tutorial.datasets import PascalVOCDataset
 from tqdm import tqdm
 from pprint import PrettyPrinter
 
@@ -9,8 +9,8 @@ pp = PrettyPrinter()
 # Parameters
 data_folder = './'
 keep_difficult = True  # difficult ground truth objects must always be considered in mAP calculation, because these objects DO exist!
-batch_size = 64
-workers = 4
+batch_size = 1
+workers = 1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 checkpoint = './BEST_checkpoint_ssd300.pth.tar'
 

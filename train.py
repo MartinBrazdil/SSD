@@ -2,27 +2,27 @@ import time
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-from model import SSD300, MultiBoxLoss
-from datasets import PascalVOCDataset
-from utils import *
+from detection_tutorial.model import SSD300, MultiBoxLoss
+from detection_tutorial.datasets import UNITDataset
+from detection_tutorial.utils import *
 
 # Data parameters
-data_folder = './'  # folder with data files
+data_folder = '/host_home/projects/data/unit'  # folder with data files
 keep_difficult = True  # use objects considered difficult to detect?
 
 # Model parameters
 # Not too many here since the SSD300 has a very specific structure
-n_classes = len(label_map)  # number of different types of objects
+# n_classes = len(label_map)  # number of different types of objects
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Learning parameters
 checkpoint = None  # path to model checkpoint, None if none
-batch_size = 8  # batch size
+batch_size = 1  # batch size
 start_epoch = 0  # start at this epoch
-epochs = 200  # number of epochs to run without early-stopping
+epochs = 20000  # number of epochs to run without early-stopping
 epochs_since_improvement = 0  # number of epochs since there was an improvement in the validation metric
 best_loss = 100.  # assume a high loss at first
-workers = 4  # number of workers for loading data in the DataLoader
+workers = 1  # number of workers for loading data in the DataLoader
 print_freq = 200  # print training or validation status every __ batches
 lr = 1e-3  # learning rate
 momentum = 0.9  # momentum
@@ -36,11 +36,29 @@ def main():
     """
     Training and validation.
     """
-    global epochs_since_improvement, start_epoch, label_map, best_loss, epoch, checkpoint
+    # global epochs_since_improvement, start_epoch, label_map, best_loss, epoch, checkpoint
+    global epochs_since_improvement, start_epoch, best_loss, epoch, checkpoint
+
+    # Custom dataloaders
+    train_dataset = UNITDataset(data_folder,
+                                split='train',
+                                keep_difficult=keep_difficult)
+    val_dataset = UNITDataset(data_folder,
+                              split='test',
+                              keep_difficult=keep_difficult)
+
+    globals()['label_map'] = train_dataset.label_map
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                               collate_fn=train_dataset.collate_fn, num_workers=workers,
+                                               pin_memory=True)  # note that we're passing the collate function here
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True,
+                                             collate_fn=val_dataset.collate_fn, num_workers=workers,
+                                             pin_memory=True)
 
     # Initialize model or load checkpoint
     if checkpoint is None:
-        model = SSD300(n_classes=n_classes)
+        model = SSD300(n_classes=train_dataset.n_classes)
         # Initialize the optimizer, with twice the default learning rate for biases, as in the original Caffe repo
         biases = list()
         not_biases = list()
@@ -66,19 +84,6 @@ def main():
     model = model.to(device)
     criterion = MultiBoxLoss(priors_cxcy=model.priors_cxcy).to(device)
 
-    # Custom dataloaders
-    train_dataset = PascalVOCDataset(data_folder,
-                                     split='train',
-                                     keep_difficult=keep_difficult)
-    val_dataset = PascalVOCDataset(data_folder,
-                                   split='test',
-                                   keep_difficult=keep_difficult)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                                               collate_fn=train_dataset.collate_fn, num_workers=workers,
-                                               pin_memory=True)  # note that we're passing the collate function here
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True,
-                                             collate_fn=val_dataset.collate_fn, num_workers=workers,
-                                             pin_memory=True)
     # Epochs
     for epoch in range(start_epoch, epochs):
         # Paper describes decaying the learning rate at the 80000th, 100000th, 120000th 'iteration', i.e. model update or batch
@@ -139,6 +144,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
     start = time.time()
 
     # Batches
+    # Fix huge memory allocation
+    torch.backends.cudnn.deterministic = True
     for i, (images, boxes, labels, _) in enumerate(train_loader):
         data_time.update(time.time() - start)
 

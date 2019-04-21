@@ -1,0 +1,19 @@
+version: '3.7'
+
+services:
+    UnIT:
+        image: 'pytorch04:latest'
+        user: 'brazdilm1'
+        devices:
+          - /dev/video0
+#          - /dev/video1
+        environment:
+          - DISPLAY=:0
+          - CUDA_LAUNCH_BLOCKING=1
+        volumes:
+          - /home/brazdilm1:/host_home
+          - /tmp/.X11-unix:/tmp/.X11-unix:rw
+#          - /dev/video0:/dev/video0
+#          - /dev/video1:/dev/video1
+        ports:
+          - 8000:8000
