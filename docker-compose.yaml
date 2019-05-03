@@ -6,7 +6,7 @@ services:
         user: 'ccv'
         devices:
           - /dev/video0
-#          - /dev/video1
+          - /dev/video1
         environment:
           - DISPLAY=:0
           - CUDA_LAUNCH_BLOCKING=1

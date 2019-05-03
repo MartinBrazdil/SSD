@@ -1,13 +1,49 @@
+from collections import OrderedDict
+
 import torch
 from torch import nn
 from detection_tutorial.utils import *
 import torch.nn.functional as F
 from math import sqrt
-from itertools import product as product
+from itertools import tee
 import torchvision
 from torchvision.models.vgg import VGG, vgg16, make_layers, cfg
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def pairwise(iterable):
+    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
+
+
+class BasicBlock(nn.Module):
+    def __init__(self, idx, cfg):
+        self.layers = OrderedDict()
+
+        def id(name, i=None):
+            if i is None:
+                return '{}{}'.format(name, idx)
+            return '{}{}_{}'.format(name, idx, i)
+
+        for i, (c0, c1) in enumerate(pairwise(cfg)):
+            self.layers[id('conv', i)] = nn.Conv2d(c0, c1, kernel_size=3, padding=1, bias=False)
+            self.layers[id('bn', i)] = nn.BatchNorm2d(c1)
+        self.layers[id('pool')] = nn.MaxPool2d(kernel_size=2, stride=2)
+
+    def forward(self, input):
+        out = input
+        for name, layer in self.layers.items():
+            if 'conv' in name:
+                out = layer(out)
+            if 'bn' in name:
+                out = layer(out)
+                out = F.relu(out)
+            if 'pool' in name:
+                out = layer(out)
+        return out
 
 
 class TinyNet(nn.Module):
@@ -22,42 +58,57 @@ class TinyNet(nn.Module):
     def __init__(self):
         super(TinyNet, self).__init__()
 
-        # Standard convolutional layers in VGG16
-        self.conv1_1 = nn.Conv2d(3, self.cfg[0], kernel_size=3, padding=1, bias=False)  # stride = 1, by default
-        self.bn1_1 = nn.BatchNorm2d(self.cfg[0])
-        self.conv1_2 = nn.Conv2d(self.cfg[0], self.cfg[1], kernel_size=3, padding=1, bias=False)
-        self.bn1_2 = nn.BatchNorm2d(self.cfg[1])
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        model = nn.Sequential(OrderedDict())
 
-        self.conv2_1 = nn.Conv2d(self.cfg[1], self.cfg[2], kernel_size=3, padding=1, bias=False)
-        self.bn2_1 = nn.BatchNorm2d(self.cfg[2])
-        self.conv2_2 = nn.Conv2d(self.cfg[2], self.cfg[3], kernel_size=3, padding=1, bias=False)
-        self.bn2_2 = nn.BatchNorm2d(self.cfg[3])
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        model = nn.Sequential(OrderedDict([
+            ('conv1', nn.Conv2d(1, 20, 5)),
+            ('relu1', nn.ReLU()),
+            ('conv2', nn.Conv2d(20, 64, 5)),
+            ('relu2', nn.ReLU())
+        ]))
 
-        self.conv3_1 = nn.Conv2d(self.cfg[3], self.cfg[4], kernel_size=3, padding=1, bias=False)
-        self.bn3_1 = nn.BatchNorm2d(self.cfg[4])
-        self.conv3_2 = nn.Conv2d(self.cfg[4], self.cfg[5], kernel_size=3, padding=1, bias=False)
-        self.bn3_2 = nn.BatchNorm2d(self.cfg[5])
-        self.conv3_3 = nn.Conv2d(self.cfg[5], self.cfg[6], kernel_size=3, padding=1, bias=False)
-        self.bn3_3 = nn.BatchNorm2d(self.cfg[6])
-        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # ceiling (not floor) here for even dims
+        self.layers = OrderedDict()
 
-        self.conv4_1 = nn.Conv2d(self.cfg[6], self.cfg[7], kernel_size=3, padding=1, bias=False)
-        self.bn4_1 = nn.BatchNorm2d(self.cfg[7])
-        self.conv4_2 = nn.Conv2d(self.cfg[7], self.cfg[8], kernel_size=3, padding=1, bias=False)
-        self.bn4_2 = nn.BatchNorm2d(self.cfg[8])
-        self.conv4_3 = nn.Conv2d(self.cfg[8], self.cfg[9], kernel_size=3, padding=1, bias=False)
-        self.bn4_3 = nn.BatchNorm2d(self.cfg[9])
-        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.layers.update(BasicBlock(0, [3, 32, 32]).layers)
+        # self.conv1_1 = nn.Conv2d(3, self.cfg[0], kernel_size=3, padding=1, bias=False)  # stride = 1, by default
+        # self.bn1_1 = nn.BatchNorm2d(self.cfg[0])
+        # self.conv1_2 = nn.Conv2d(self.cfg[0], self.cfg[1], kernel_size=3, padding=1, bias=False)
+        # self.bn1_2 = nn.BatchNorm2d(self.cfg[1])
+        # self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.conv5_1 = nn.Conv2d(self.cfg[9], self.cfg[10], kernel_size=3, padding=1, bias=False)
-        self.bn5_1 = nn.BatchNorm2d(self.cfg[10])
-        self.conv5_2 = nn.Conv2d(self.cfg[10], self.cfg[11], kernel_size=3, padding=1, bias=False)
-        self.bn5_2 = nn.BatchNorm2d(self.cfg[11])
-        self.conv5_3 = nn.Conv2d(self.cfg[11], self.cfg[12], kernel_size=3, padding=1, bias=False)
-        self.bn5_3 = nn.BatchNorm2d(self.cfg[12])
-        self.pool5 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)  # retains size because stride is 1 (and padding)
+        self.layers.update(BasicBlock(1, [32, 32, 32]).layers)
+        # self.conv2_1 = nn.Conv2d(self.cfg[1], self.cfg[2], kernel_size=3, padding=1, bias=False)
+        # self.bn2_1 = nn.BatchNorm2d(self.cfg[2])
+        # self.conv2_2 = nn.Conv2d(self.cfg[2], self.cfg[3], kernel_size=3, padding=1, bias=False)
+        # self.bn2_2 = nn.BatchNorm2d(self.cfg[3])
+        # self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.layers.update(BasicBlock(2, [32, 32, 32, 32]).layers)
+        # self.conv3_1 = nn.Conv2d(self.cfg[3], self.cfg[4], kernel_size=3, padding=1, bias=False)
+        # self.bn3_1 = nn.BatchNorm2d(self.cfg[4])
+        # self.conv3_2 = nn.Conv2d(self.cfg[4], self.cfg[5], kernel_size=3, padding=1, bias=False)
+        # self.bn3_2 = nn.BatchNorm2d(self.cfg[5])
+        # self.conv3_3 = nn.Conv2d(self.cfg[5], self.cfg[6], kernel_size=3, padding=1, bias=False)
+        # self.bn3_3 = nn.BatchNorm2d(self.cfg[6])
+        # self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True)  # ceiling (not floor) here for even dims
+
+        self.blocks.append(BasicBlock(3, [32, 64, 64, 64]).layers)
+        # self.conv4_1 = nn.Conv2d(self.cfg[6], self.cfg[7], kernel_size=3, padding=1, bias=False)
+        # self.bn4_1 = nn.BatchNorm2d(self.cfg[7])
+        # self.conv4_2 = nn.Conv2d(self.cfg[7], self.cfg[8], kernel_size=3, padding=1, bias=False)
+        # self.bn4_2 = nn.BatchNorm2d(self.cfg[8])
+        # self.conv4_3 = nn.Conv2d(self.cfg[8], self.cfg[9], kernel_size=3, padding=1, bias=False)
+        # self.bn4_3 = nn.BatchNorm2d(self.cfg[9])
+        # self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.blocks.append(BasicBlock(4, [64, 64, 64, 64]).layers)
+        # self.conv5_1 = nn.Conv2d(self.cfg[9], self.cfg[10], kernel_size=3, padding=1, bias=False)
+        # self.bn5_1 = nn.BatchNorm2d(self.cfg[10])
+        # self.conv5_2 = nn.Conv2d(self.cfg[10], self.cfg[11], kernel_size=3, padding=1, bias=False)
+        # self.bn5_2 = nn.BatchNorm2d(self.cfg[11])
+        # self.conv5_3 = nn.Conv2d(self.cfg[11], self.cfg[12], kernel_size=3, padding=1, bias=False)
+        # self.bn5_3 = nn.BatchNorm2d(self.cfg[12])
+        # self.pool5 = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)  # retains size because stride is 1 (and padding)
 
     def forward(self, image):
         """
@@ -66,6 +117,8 @@ class TinyNet(nn.Module):
         :param image: images, a tensor of dimensions (N, 3, 300, 300)
         :return: lower-level feature maps conv4_3 and conv7
         """
+
+
         out = F.relu(self.bn1_1(self.conv1_1(image)))  # (N, 64, 300, 300)
         out = F.relu(self.bn1_2(self.conv1_2(out)))  # (N, 64, 300, 300)
         out = self.pool1(out)  # (N, 64, 150, 150)
@@ -487,3 +540,34 @@ class MultiBoxLoss(nn.Module):
         # TOTAL LOSS
 
         return conf_loss + self.alpha * loc_loss
+
+
+class MyModule(nn.Module):
+    def __init__(self, in_c):
+        super().__init__()
+        modules = nn.ModuleList()
+        modules.append(MyModule.conv_block([in_c, 32, 32]))
+        modules.append(MyModule.conv_block([32, 32, 32]))
+        modules.append(MyModule.conv_block([32, 32, 32, 32]))
+        modules.append(MyModule.conv_block([32, 64, 64, 64]))
+        modules.append(MyModule.conv_block([64, 64, 64, 64]))
+        self.model = nn.Sequential(*modules)
+
+    @staticmethod
+    def conv_block(cfg):
+        seq = nn.Sequential()
+        for i, (c0, c1) in enumerate(pairwise(cfg)):
+            seq.add_module('conv' + str(i), nn.Conv2d(c0, c1, kernel_size=3, padding=1, bias=False))
+            seq.add_module('bn' + str(i), nn.BatchNorm2d(c1))
+        seq.add_module('pool', nn.MaxPool2d(kernel_size=2, stride=2))
+        return seq
+
+    def forward(self, img):
+        return self.model.forward(img)
+
+if __name__ == '__main__':
+    img = torch.ones([1, 3, 300, 300])
+    # block = BasicBlock(0, [3, 32, 32])
+    # block.forward(input)
+
+    MyModule(3).forward(img)

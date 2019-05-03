@@ -5,7 +5,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES "video,compute,utility"
 
 ARG USERID=1000
 ARG GROUPID=1000
-ARG USERNAME=ccv
+ARG USERNAME=brazdilm1
 
 ENV APT_CLEAN_CMD "sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*"
 
